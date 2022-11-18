@@ -14,7 +14,7 @@ impl Layer for ReLU {
     fn output_size(&self) -> usize { self.size }
 
 
-    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+    fn forward(&mut self, inputs: Array1<f32>) -> Array1<f32> {
         
         inputs.into_iter().map(|input| {
             if input > 0.0 { input } else { 0.0 }
@@ -41,7 +41,7 @@ impl Layer for Sigmoid {
     fn output_size(&self) -> usize { self.size }
 
 
-    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+    fn forward(&mut self, inputs: Array1<f32>) -> Array1<f32> {
 
         todo!()     
     }
@@ -64,7 +64,7 @@ impl Layer for Softmax {
     fn output_size(&self) -> usize { self.size }
 
 
-    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+    fn forward(&mut self, inputs: Array1<f32>) -> Array1<f32> {
         
         let max = inputs.iter().copied().map(|float| float).max_by(|a, b| a.total_cmp(b)).unwrap();
 

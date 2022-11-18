@@ -5,7 +5,7 @@ use crate::{Optimizer, Layer, Loss};
 
 pub struct NeuronNetworkConfig {
     ///(min, max)
-    pub weights_init: (f32, f32), //better weight initialization enum for different techniques
+    pub weights_init: (f32, f32), //TODO better weight initialization enum for different techniques (better distributed)
     pub loss: Loss,
     pub optimizer: Optimizer, 
 }
@@ -120,6 +120,7 @@ impl NeuronNetwork {
 
         match &mut self.optimizer {
             Optimizer::OptimizerSGD(optimizer) => optimizer.update(&mut self.layers),
+            Optimizer::OptimizerAdam(optimizer) => optimizer.update(&mut self.layers),
         }
 
 

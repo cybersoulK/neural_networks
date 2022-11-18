@@ -27,7 +27,7 @@ impl Layer for Inputs {
     }
 
 
-    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+    fn forward(&mut self, inputs: Array1<f32>) -> Array1<f32> {
         inputs.clone()
     }
 

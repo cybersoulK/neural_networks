@@ -46,7 +46,7 @@ fn main() {
     let config = NeuronNetworkConfig { 
         weights_init: (-0.3, 0.3),
         loss: CrossEntropy::new().into(),
-        optimizer: OptimizerSGD::new(16, 0.0001).into(),
+        optimizer: OptimizerAdam::new(32, 0.0005, OptmizerAdamConfig::default()).into(),
     };
 
     let mut neuron_network = NeuronNetworkBuilder::new(config)

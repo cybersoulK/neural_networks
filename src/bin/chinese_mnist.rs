@@ -3,16 +3,16 @@ use neural_networks::{*, utils::Console};
 use::neural_networks::utils::csv_loader;
 
 
-fn load_alphabet(filename: &str) -> Vec<(String, Vec<f32>)> {
+fn load_chinese_mnist(filename: &str) -> Vec<(usize, Vec<f32>)> {
 
     let data = csv_loader(filename).unwrap();
 
-    let mut alphabet = data.into_iter().skip(1).map(|row| {
+    let mut chinese_mnist = data.into_iter().skip(1).map(|row| {
 
         let mut row_iter = row.into_iter();
 
-        let i = row_iter.next().unwrap().parse::<u32>().unwrap();
-        let label = char::from_u32('a' as u32 + i).unwrap().to_string();
+        row_iter.next_back();
+        let label = row_iter.next_back().unwrap().parse::<usize>().unwrap();
 
         (
             label,
@@ -24,18 +24,18 @@ fn load_alphabet(filename: &str) -> Vec<(String, Vec<f32>)> {
     use rand::thread_rng;
     use rand::seq::SliceRandom;
 
-    alphabet.shuffle(&mut thread_rng());
+    chinese_mnist.shuffle(&mut thread_rng());
 
-    alphabet
+    chinese_mnist
 }
 
-fn display_alphabet(data: Vec<f32>, label: String, predicted_label: String) {
+fn display_chinese_mnist(data: Vec<f32>, predicted_label: String, correct_label: String) {
 
-    println!("predicted: {predicted_label}, correct: {label}");
+    println!("predicted: {predicted_label}, correct: {correct_label}");
 
-    for x in 0..28 {
-        for y in 0..28 {
-            print!("{}, ", if data[y + x * 28] > 0.5 { "#" } else { " " });
+    for x in 0..64 {
+        for y in 0..64 {
+            print!("{}, ", if data[y + x * 64] > 0.3 { "#" } else { " " });
         }
         println!();
     }
@@ -46,15 +46,13 @@ fn display_alphabet(data: Vec<f32>, label: String, predicted_label: String) {
 
 fn main() {
 
-    let labels = (0..26).map(|i| {
-        char::from_u32('a' as u32 + i).unwrap().to_string()
-    }).collect::<Vec<_>>();
+    let labels = vec!["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "百", "千", "万", "亿"].into_iter().map(|str| str.to_owned()).collect::<Vec<_>>();
 
-    let alphabet = load_alphabet("alphabet.csv");
+    let chinese_mnist = load_chinese_mnist("chinese_mnist.csv");
 
-    let train_test_division = (alphabet.len() as f32 * 0.9) as usize;
-    let mut alphabet_train = alphabet[0..train_test_division].to_vec();
-    let alphabet_test = alphabet[train_test_division..alphabet.len()].to_vec();
+    let train_test_division = (chinese_mnist.len() as f32 * 0.9) as usize;
+    let mut chinese_mnist_train = chinese_mnist[0..train_test_division].to_vec();
+    let chinese_mnist_test = chinese_mnist[train_test_division..chinese_mnist.len()].to_vec();
 
 
     let config = NeuronNetworkConfig { 
@@ -64,10 +62,12 @@ fn main() {
     };
 
     let mut neuron_network = NeuronNetworkBuilder::new(config)
-        .add(Inputs::new(28 * 28))
+        .add(Inputs::new(64 * 64))
 
         .add(Dense::new(255))
         .add(ReLU::new())
+
+        .add(Dropout::new(0.5))
 
         .add(Dense::new(255))
         .add(ReLU::new())
@@ -95,13 +95,13 @@ fn main() {
         match command.as_str() {
             "train" => {
 
-                let train_n = (params.get(0).cloned().unwrap_or("1".to_owned()).parse::<f32>().unwrap_or(1.0) * alphabet_train.len() as f32) as usize;
+                let train_n = (params.get(0).cloned().unwrap_or("1".to_owned()).parse::<f32>().unwrap_or(1.0) * chinese_mnist_train.len() as f32) as usize;
 
                 for _ in 0..train_n {
 
                     train_i += 1;
 
-                    if train_i >= alphabet_train.len() { 
+                    if train_i >= chinese_mnist_train.len() { 
 
                         epoch += 1.0;
 
@@ -115,12 +115,11 @@ fn main() {
                         use rand::thread_rng;
                         use rand::seq::SliceRandom;
 
-                        alphabet_train.shuffle(&mut thread_rng());
+                        chinese_mnist_train.shuffle(&mut thread_rng());
                     }
 
-                    let (label, data) = alphabet_train[train_i].clone();
+                    let (index, data) = chinese_mnist_train[train_i].clone();
         
-                    let index = labels.binary_search(&label).unwrap();
                     let mut one_hot = vec![0.0; labels.len()];
                     one_hot[index] = 1.0;
             
@@ -130,7 +129,6 @@ fn main() {
 
                     let (predicted_index, _) = outputs.into_iter().enumerate().max_by(|(_, a), (_, b)| a.total_cmp(b)).unwrap();
 
-                    let index = labels.binary_search(&label).unwrap();
                     if index == predicted_index { train_correct_n += 1 }
 
                     train_loss += loss;
@@ -139,7 +137,7 @@ fn main() {
 
             "test" => {
 
-                let test_n = params.get(0).cloned().unwrap_or(alphabet_test.len().to_string()).parse::<usize>().unwrap_or(alphabet_test.len());
+                let test_n = params.get(0).cloned().unwrap_or(chinese_mnist_test.len().to_string()).parse::<usize>().unwrap_or(chinese_mnist_test.len());
                 let is_display = params.get(1).cloned().unwrap_or("false".to_owned()).parse::<bool>().unwrap_or(false);
 
   
@@ -148,23 +146,22 @@ fn main() {
                 for _ in 0..test_n {
 
                     test_i += 1;
-                    if test_i >= alphabet_test.len() { test_i = 0 }
+                    if test_i >= chinese_mnist_test.len() { test_i = 0 }
                     
-                    let (label, data) = alphabet_test[test_i].clone();
+                    let (index, data) = chinese_mnist_test[test_i].clone();
 
                     let outputs = neuron_network.forward(data.clone());
 
    
                     let (predicted_index, _) = outputs.into_iter().enumerate().max_by(|(_, a), (_, b)| a.total_cmp(b)).unwrap();
 
-                    let index = labels.binary_search(&label).unwrap();
-
                     if index == predicted_index { test_correct_n += 1 }
 
 
                     let precicted_label = labels[predicted_index].clone();
+                    let correct_label = labels[index].clone();
 
-                    if is_display { display_alphabet(data, label, precicted_label) }
+                    if is_display { display_chinese_mnist(data, precicted_label, correct_label) }
                 }
 
                 println!("tested {test_n}, accurracy: {}", test_correct_n as f32 / test_n as f32);

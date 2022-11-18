@@ -58,7 +58,7 @@ impl Layer for Dense {
     }
 
 
-    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+    fn forward(&mut self, inputs: Array1<f32>) -> Array1<f32> {
 
         self.neurons.mapv(|Neuron { weights, bias }| {
             inputs.dot(&weights) + bias
@@ -83,24 +83,19 @@ impl Layer for Dense {
     }
 
 
-    fn take_gradient(&mut self) -> Option<Gradient> {
-        let gradient = self.gradient.clone();
-        self.gradient.clear();
-
-        Some(gradient)
+    fn gradient_mut(&mut self) -> Option<&mut Gradient> {
+        Some(&mut self.gradient)
     }
 
-    fn train(&mut self, mut gradient: Gradient) { 
+    fn train(&mut self) { 
 
-        gradient.weights.reverse();
-        gradient.biases.reverse();
-
-        for Neuron { weights, bias } in self.neurons.iter_mut() {
+        for (neuron_i, Neuron { weights, bias }) in self.neurons.iter_mut().enumerate() {
             
-            for weight in weights { *weight += gradient.weights.pop().unwrap(); }
-            *bias += gradient.biases.pop().unwrap();
+            for (weight_i, weight) in weights.iter_mut().enumerate() { *weight += self.gradient.weights[neuron_i * self.input_n + weight_i] }
+            *bias += self.gradient.biases[neuron_i];
         }
 
+        self.gradient.clear();
         self.calc_weights_grouped();
     }
 }
@@ -121,54 +116,3 @@ impl Dense {
         self.weights_grouped = weights_grouped;
     }
 }
-
-
-/*
-
-fn backward(&self, inputs: Array1<f32>, d_inputs: Array1<f32>) -> (Array1<f32>, Option<Gradient>) {
-
-        let mut gradient = Gradient::new();
-
-        let mut d_weights = Vec::new();
-
-        for (neuron_i, _) in self.neurons.iter().enumerate() {
-
-            d_weights.extend(inputs.iter().map(|input| {
-                input * d_inputs[neuron_i]
-            }));
-
-            let d_bias = d_inputs[neuron_i];
-
-
-            gradient.weights.append(&mut d_weights);
-            gradient.biases.push(d_bias);
-        }
-
-
-        let mut d_outputs = Array1::from_vec(v)vec![0.0; inputs.len()];
-        
-        for (i, d_output) in d_outputs.iter_mut().enumerate() {
-            
-            *d_output = self.neurons.iter().enumerate().map(|(neuron_i, Neuron { weights, .. })| {
-                weights[i] * d_inputs[neuron_i]
-            }).sum::<f32>();
-        }
-
-
-        (d_outputs, Some(gradient))
-    }
-
-    fn train(&mut self, gradients: &mut Vec<Gradient>) { 
-
-        let mut gradient = gradients.pop().unwrap();
-        gradient.weights.reverse();
-        gradient.biases.reverse();
-
-        for Neuron { weights, bias } in self.neurons.iter_mut() {
-            
-            for weight in weights { *weight += gradient.weights.pop().unwrap(); }
-            *bias += gradient.biases.pop().unwrap();
-        }
-    }
-
-*/
