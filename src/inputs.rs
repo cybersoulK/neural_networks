@@ -1,4 +1,6 @@
-use crate::{NeuronLayer, Gradient};
+use ndarray::{Array1, array};
+
+use crate::Layer;
 
 
 pub struct Inputs {
@@ -13,7 +15,7 @@ impl Inputs {
     }
 }
 
-impl NeuronLayer for Inputs {
+impl Layer for Inputs {
     fn init(&mut self, _weights_n: usize, _min: f32, _max: f32) {}
 
     fn output_size(&self) -> usize {
@@ -25,9 +27,9 @@ impl NeuronLayer for Inputs {
     }
 
 
-    fn forward(&self, inputs: Vec<f32>) -> Vec<f32> {
-        inputs
+    fn forward(&self, inputs: Array1<f32>) -> Array1<f32> {
+        inputs.clone()
     }
 
-    fn backward(&self, _inputs: Vec<f32>, _d_inputs: Vec<f32>) -> (Vec<f32>, Option<Gradient>) { (vec![], None) }
+    fn backward(&mut self, _inputs: Array1<f32>, _d_inputs: Array1<f32>) -> Array1<f32> { array![] }
 }

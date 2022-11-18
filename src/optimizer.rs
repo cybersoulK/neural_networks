@@ -1,106 +1,58 @@
 
-use crate::{NeuronLayer, Gradient};
+use crate::Layer;
 
 
 
-pub trait Optimizer {
-    fn update(&mut self, gradients: Vec<Gradient>, layers: &mut Vec<Box<dyn NeuronLayer>>);
+pub enum Optimizer {
+    OptimizerSGD(OptimizerSGD),
+}
+
+impl From<OptimizerSGD> for Optimizer {
+    fn from(value: OptimizerSGD) -> Self {
+        Self::OptimizerSGD(value)
+    }
 }
 
 
 
+
 pub struct OptimizerSGD {
-    grandients_buffer: Vec<Vec<Gradient>>,
     batch_size: usize,
     learning_rate: f32,
+
+    steps: usize,
 }
 
 impl OptimizerSGD {
     pub fn new(batch_size: usize, learning_rate: f32) -> Self {
         Self {
-            grandients_buffer: Vec::new(),
             batch_size, 
             learning_rate,
+
+            steps: 0,
         }
     }
 }
 
 
 
-impl Optimizer for OptimizerSGD {
+impl OptimizerSGD {
     
-    fn update(&mut self, gradients: Vec<Gradient>, layers: &mut Vec<Box<dyn NeuronLayer>>) {
+    pub fn update(&mut self, layers: &mut Vec<Box<dyn Layer>>) {
 
-        self.grandients_buffer.push(gradients);
+        self.steps += 1;
 
-
-        if self.grandients_buffer.len() == self.batch_size {
-
-            let mut gradients_buffer = std::mem::take(&mut self.grandients_buffer).into_iter();
-            let mut gradients = gradients_buffer.next().unwrap();
-            
-            for join_gradients in gradients_buffer {
-                for (gradient, join_gradient) in gradients.iter_mut().zip(join_gradients) {
-                    *gradient += join_gradient;
-                }
-            }
-
-            for gradient in gradients.iter_mut() {
-                *gradient *= -self.learning_rate / self.batch_size as f32
-            }
-
+        if self.steps == self.batch_size {
+            self.steps = 0;
 
             for layer in layers {
-                layer.train(&mut gradients);
-            }
-        }
-    }
-}
 
+                if let Some(mut gradient) = layer.take_gradient() {
 
-
-pub struct OptimizerAdam {
-    grandients_buffer: Vec<Vec<Gradient>>,
-    batch_size: usize,
-    learning_rate: f32,
-}
-
-impl OptimizerAdam {
-    pub fn new(batch_size: usize, learning_rate: f32) -> Self {
-        Self {
-            grandients_buffer: Vec::new(),
-            batch_size, 
-            learning_rate,
-        }
-    }
-}
-
-
-impl Optimizer for OptimizerAdam {
-    
-    fn update(&mut self, gradients: Vec<Gradient>, layers: &mut Vec<Box<dyn NeuronLayer>>) {
-
-        self.grandients_buffer.push(gradients);
-
-
-        if self.grandients_buffer.len() == self.batch_size {
-
-            let mut gradients_buffer = std::mem::take(&mut self.grandients_buffer).into_iter();
-            let mut gradients = gradients_buffer.next().unwrap();
-            
-            for join_gradients in gradients_buffer {
-                for (gradient, join_gradient) in gradients.iter_mut().zip(join_gradients) {
-                    *gradient += join_gradient;
-                }
-            }
-
-            for gradient in gradients.iter_mut() {
-                *gradient *= -self.learning_rate / self.batch_size as f32
-            }
-
-
-            for layer in layers {
-                layer.train(&mut gradients);
+                    gradient *= -self.learning_rate / self.batch_size as f32;
+                    
+                    layer.train(gradient);
+                }                
             }
         }
     }

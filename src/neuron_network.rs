@@ -1,29 +1,18 @@
 
-use crate::{OptimizerSGD, Optimizer, Gradient};
-
-
-pub trait NeuronLayer {
-    fn init(&mut self, inputs_n: usize, min: f32, max: f32);
-    fn output_size(&self) -> usize;
-
-    fn is_inputs_layer(&self) -> bool { false }
-
-    fn forward(&self, inputs: Vec<f32>) -> Vec<f32>;
-
-    fn backward(&self, inputs: Vec<f32>, d_inputs: Vec<f32>) -> (Vec<f32>, Option<Gradient>);
-    fn train(&mut self, _gradients: &mut Vec<Gradient>) {}
-}
+use crate::{Optimizer, Layer, Loss};
 
 
 
 pub struct NeuronNetworkConfig {
     ///(min, max)
     pub weights_init: (f32, f32), //better weight initialization enum for different techniques
+    pub loss: Loss,
+    pub optimizer: Optimizer, 
 }
 
 
 pub struct NeuronNetworkBuilder {
-    layers: Vec<Box<dyn NeuronLayer>>,
+    layers: Vec<Box<dyn Layer>>,
     config: NeuronNetworkConfig,
 }
 
@@ -35,7 +24,7 @@ impl NeuronNetworkBuilder {
         }
     }
 
-    pub fn add<NL: NeuronLayer + 'static>(mut self, layer: NL) -> Self {
+    pub fn add<NL: Layer + 'static>(mut self, layer: NL) -> Self {
 
         self.layers.push(Box::new(layer));
         self
@@ -45,13 +34,15 @@ impl NeuronNetworkBuilder {
 
         if self.layers.len() < 2 { return Err("expected at least two layers".to_owned()) }
 
-        
         let first_layer = self.layers.get(0).unwrap();
         if first_layer.is_inputs_layer() == false { return Err("first layer must be Inputs".to_owned()) }
 
+
+        let NeuronNetworkConfig { weights_init, loss, optimizer } = self.config;
         
+
         let mut input_size = first_layer.output_size();
-        let (weights_min, weights_max) = self.config.weights_init;
+        let (weights_min, weights_max) = weights_init;
 
         for layer in self.layers.iter_mut().skip(1) {
             layer.init(input_size, weights_min, weights_max);
@@ -61,7 +52,8 @@ impl NeuronNetworkBuilder {
 
         Ok(NeuronNetwork { 
             layers: self.layers,
-            optimizer: Box::new(OptimizerSGD::new(16, 0.0001)), //TODO: temp, pick from enum in config
+            loss,
+            optimizer,
         })
     }
 }
@@ -69,58 +61,68 @@ impl NeuronNetworkBuilder {
 
 
 pub struct NeuronNetwork {
-    layers: Vec<Box<dyn NeuronLayer>>,
-    optimizer: Box<dyn Optimizer>,
-    //TODO metrics  
+    layers: Vec<Box<dyn Layer>>,
+    optimizer: Optimizer,
+    loss: Loss,
 }
 
 impl NeuronNetwork {
 
-    pub fn forward(&mut self, mut inputs: Vec<f32>) -> Vec<f32> {
+    pub fn forward(&mut self, inputs: Vec<f32>) -> Vec<f32> {
         
         let inputs_size = self.layers.get(0).unwrap().output_size();
         if inputs.len() != inputs_size { panic!("inputs must be length {}, but {} were sent", inputs_size, inputs.len()) }
 
 
+        let mut inputs = inputs.into();
+
         for layer in self.layers.iter_mut() {
-            let outputs = layer.forward(std::mem::take(&mut inputs));
+            let outputs = layer.forward(inputs);
             inputs = outputs;
         }
 
-        inputs
+        inputs.to_vec()
     }
 
 
-    pub fn train(&mut self, mut inputs: Vec<f32>, one_hot: Vec<f32>) {
+    pub fn train(&mut self, inputs: Vec<f32>, one_hot: Vec<f32>) -> (Vec<f32>, f32) {
         
         let inputs_size = self.layers.get(0).unwrap().output_size();
         if inputs.len() != inputs_size { panic!("inputs must be length {}, but {} were sent", inputs_size, inputs.len()) }
 
 
+        let mut inputs = inputs.into();
         let mut inputs_vec = Vec::new();
 
         for layer in self.layers.iter_mut() {
-            inputs = layer.forward(std::mem::take(&mut inputs));
+            let outputs = layer.forward(inputs);
+            inputs = outputs;
             inputs_vec.push(inputs.clone());
         }
 
+        let outputs = inputs.to_vec();
 
-        //let loss = crate::cross_entropy::forward(inputs.clone(), one_hot.clone());
-        let mut d_inputs = crate::cross_entropy::backward(inputs_vec.pop().unwrap(), one_hot);
+        
+        let (loss, mut d_inputs, ) = match &self.loss {
 
+            Loss::CrossEntropy(loss) => (
+                loss.forward(inputs.clone(), one_hot.clone()).sum(), 
+                loss.backward(inputs_vec.pop().unwrap(), one_hot)
+            ),
+        };
 
-        let mut gradients = Vec::new();
 
         for layer in self.layers.iter_mut().skip(1).rev() {
-            let (d_outputs, gradient) = layer.backward(inputs_vec.pop().unwrap(), d_inputs);
+            let d_outputs = layer.backward(inputs_vec.pop().unwrap(), d_inputs);
             d_inputs = d_outputs;
-  
-            gradients.push(gradient);
         }
 
 
-        let gradients = gradients.into_iter().flatten().collect();
+        match &mut self.optimizer {
+            Optimizer::OptimizerSGD(optimizer) => optimizer.update(&mut self.layers),
+        }
 
-        self.optimizer.update(gradients, &mut self.layers);
+
+        (outputs, loss)
     }
 }

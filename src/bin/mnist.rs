@@ -23,14 +23,15 @@ fn load_mnist(filename: &str) -> Vec<(String, Vec<f32>)> {
 fn display_mnist(data: Vec<f32>, label: String, predicted_label: String) {
 
     println!("predicted: {predicted_label}, correct: {label}");
-    println!();
 
     for x in 0..28 {
         for y in 0..28 {
-            print!("{}, ", if data[y + x * 28] > 0.0 { "#" } else { " " });
+            print!("{}, ", if data[y + x * 28] > 0.5 { "#" } else { " " });
         }
         println!();
     }
+
+    println!();
 }
 
 
@@ -43,7 +44,9 @@ fn main() {
 
 
     let config = NeuronNetworkConfig { 
-        weights_init: (-0.3, 0.3) 
+        weights_init: (-0.3, 0.3),
+        loss: CrossEntropy::new().into(),
+        optimizer: OptimizerSGD::new(16, 0.0001).into(),
     };
 
     let mut neuron_network = NeuronNetworkBuilder::new(config)
@@ -55,7 +58,7 @@ fn main() {
         .add(Dense::new(255))
         .add(ReLU::new())
 
-        .add(Dense::new(10))
+        .add(Dense::new(labels.len()))
         .add(Softmax::new())
         .build().unwrap();
 
@@ -73,7 +76,7 @@ fn main() {
         match command.as_str() {
             "train" => {
 
-                let train_n = params.get(0).cloned().unwrap_or(mnist_train.len().to_string()).parse::<usize>().unwrap_or(mnist_train.len());
+                let train_n = (params.get(0).cloned().unwrap_or("1".to_owned()).parse::<f32>().unwrap_or(1.0) * mnist_train.len() as f32) as usize;
 
                 for _ in 0..train_n {
 
@@ -91,7 +94,7 @@ fn main() {
                     let (label, data) = mnist_train[train_i].clone();
         
                     let index = labels.binary_search(&label).unwrap();
-                    let mut one_hot = vec![0.0; 10];
+                    let mut one_hot = vec![0.0; labels.len()];
                     one_hot[index] = 1.0;
             
                     neuron_network.train(data, one_hot);

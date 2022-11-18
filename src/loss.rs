@@ -1,13 +1,30 @@
+use std::f32::consts::E;
 
-pub enum Loss { //TODO loss can be a layer added at the end by neuron network
-    CrossEntropy,
+use ndarray::Array1;
+
+
+
+pub enum Loss {
+    CrossEntropy(CrossEntropy),
+}
+
+impl From<CrossEntropy> for Loss {
+    fn from(value: CrossEntropy) -> Self {
+        Self::CrossEntropy(value)
+    }
 }
 
 
-pub mod cross_entropy {
-    use std::f32::consts::E;
 
-    pub fn forward(inputs: Vec<f32>, one_hot: Vec<f32>) -> Vec<f32> {
+pub struct CrossEntropy;
+
+impl CrossEntropy {
+
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn forward(&self, inputs: Array1<f32>, one_hot: Vec<f32>) -> Array1<f32> {
 
         inputs.into_iter().zip(one_hot).map(|(input, one_hot)| {
 
@@ -17,7 +34,7 @@ pub mod cross_entropy {
         }).collect()
     }
 
-    pub fn backward(inputs: Vec<f32>, one_hot: Vec<f32>) -> Vec<f32> {
+    pub fn backward(&self, inputs: Array1<f32>, one_hot: Vec<f32>) -> Array1<f32> {
 
         inputs.into_iter().zip(one_hot).map(|(input, one_hot)| {
 
